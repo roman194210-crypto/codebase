@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Крестики-нолики 1.1</title>
+<style>
+  body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; margin-top: 50px; background-color: #f0f8ff; overflow-x: hidden; }
+  h1 { margin-bottom: 20px; color: #333; text-shadow: 2px 2px 5px #aaa; }
+  .board { display: grid; grid-template-columns: repeat(3, 130px); grid-template-rows: repeat(3, 130px); gap: 12px; margin-top: 15px; }
+  .cell { width: 130px; height: 130px; display: flex; justify-content: center; align-items: center; font-size: 70px; cursor: pointer; background: linear-gradient(145deg, #ffffff, #d0e7ff); border-radius: 20px; box-shadow: 5px 5px 15px #ccc, -5px -5px 15px #fff; transition: transform 0.2s, background 0.2s; }
+  .cell:hover { transform: scale(1.1); background: linear-gradient(145deg, #e0f0ff, #ffffff); }
+  #message { margin-top: 20px; font-size: 22px; font-weight: bold; color: #222; text-align: center; min-height: 24px; }
+  button { margin-top: 15px; padding: 10px 20px; font-size: 18px; border-radius: 12px; border: none; cursor: pointer; background-color: #4caf50; color: white; transition: 0.2s; }
+  button:hover { background-color: #45a049; }
+  .X { font-weight: bold; animation: appear 0.3s ease-in-out; }
+  .O { font-weight: bold; animation: appear 0.3s ease-in-out; }
+  @keyframes appear { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  .confetti { position: fixed; width: 10px; height: 10px; background-color: red; top: 0; left: 50%; pointer-events: none; opacity: 0.8; animation: fall 3s linear forwards; }
+  @keyframes fall { 0% { transform: translateY(0) rotate(0deg); } 100% { transform: translateY(100vh) rotate(720deg); } }
+
+  .difficulty-container { display: flex; flex-direction: column; align-items: center; margin-bottom: 10px; }
+  .difficulty-label { font-size: 18px; margin-bottom: 5px; }
+  .difficulty-slider {
+    -webkit-appearance: none;
+    width: 250px;
+    height: 12px;
+    border-radius: 10px;
+    background: linear-gradient(90deg, #4caf50 0%, #f0f8ff 100%);
+    outline: none;
+    transition: background 0.3s;
+  }
+  .difficulty-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    background: #ff5722;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0,0,0,0.3);
+    transition: transform 0.2s;
+  }
+  .difficulty-slider::-webkit-slider-thumb:hover { transform: scale(1.2); }
+  .difficulty-slider::-moz-range-thumb {
+    width: 25px;
+    height: 25px;
+    border-radius: 50%;
+    background: #ff5722;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0,0,0,0.3);
+    transition: transform 0.2s;
+  }
+  .color-picker-container { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<h1>Крестики-нолики 1.1</h1>
+<div class="difficulty-container">
+  <div class="difficulty-label">Сложность: <span id="difficulty-value">Легко</span></div>
+  <input type="range" min="1" max="3" value="1" class="difficulty-slider" id="difficulty-slider">
+</div>
+<div class="color-picker-container">
+  <label for="x-color">X цвет:</label>
+  <input type="color" id="x-color" value="#e74c3c">
+  <label for="o-color">O цвет:</label>
+  <input type="color" id="o-color" value="#3498db">
+</div>
+<div class="board" id="board"></div>
+<div id="message"></div>
+<button onclick="resetGame()">Начать заново</button>
+
+<script>
+const boardElement = document.getElementById('board');
+const message = document.getElementById('message');
+const slider = document.getElementById('difficulty-slider');
+const difficultyValue = document.getElementById('difficulty-value');
+const xColorInput = document.getElementById('x-color');
+const oColorInput = document.getElementById('o-color');
+
+let board = Array(9).fill('');
+let currentPlayer = 'X';
+let gameOver = false;
+let botPlayer = 'O';
+let difficulty = 1;
+let xColor = xColorInput.value;
+let oColor = oColorInput.value;
+
+slider.addEventListener('input', () => {
+  difficulty = parseInt(slider.value);
+  const labels = ['Легко', 'Средне', 'Эксперт'];
+  difficultyValue.textContent = labels[difficulty-1];
+});
+
+xColorInput.addEventListener('input', () => { xColor = xColorInput.value; createBoard(); });
+
+oColorInput.addEventListener('input', () => { oColor = oColorInput.value; createBoard(); });
+
+function createBoard() {
+  boardElement.innerHTML = '';
+  board.forEach((cell, index) => {
+    const cellDiv = document.createElement('div');
+    cellDiv.classList.add('cell');
+    if (cell === 'X') { cellDiv.classList.add('X'); cellDiv.style.color = xColor; }
+    if (cell === 'O') { cellDiv.classList.add('O'); cellDiv.style.color = oColor; }
+    cellDiv.addEventListener('click', () => makeMove(index));
+    cellDiv.textContent = cell;
+    boardElement.appendChild(cellDiv);
+  });
+}
+
+function makeMove(index) {
+  if (board[index] !== '' || gameOver) return;
+  board[index] = currentPlayer;
+  checkWinner();
+  currentPlayer = currentPlayer === 'X' ? 'O' : 'X';
+  createBoard();
+  if (!gameOver && currentPlayer === botPlayer) setTimeout(botMove, 400);
+}
+
+function botMove() {
+  if (gameOver) return;
+  let emptyCells = board.map((cell, i) => cell === '' ? i : null).filter(i => i !== null);
+  if (emptyCells.length === 0) return;
+  let move = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+  board[move] = botPlayer;
+  checkWinner();
+  currentPlayer = 'X';
+  createBoard();
+}
+
+function checkWinner() {
+  const winCombos = [ [0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6] ];
+  for (const [a,b,c] of winCombos) {
+    if(board[a] && board[a]===board[b] && board[a]===board[c]){
+      message.textContent = `Победитель: ${board[a]}!`;
+      gameOver = true;
+      launchConfetti();
+      return;
+    }
+  }
+  if(!board.includes('')){
+    message.textContent = 'Ничья!';
+    gameOver = true;
+  }
+}
+
+function resetGame(){
+  board=Array(9).fill('');
+  currentPlayer='X';
+  gameOver=false;
+  message.textContent='';
+  createBoard();
+}
+
+function launchConfetti(){
+  for(let i=0;i<50;i++){
+    const conf=document.createElement('div');
+    conf.classList.add('confetti');
+    conf.style.left=Math.random()*window.innerWidth+'px';
+    conf.style.backgroundColor=`hsl(${Math.random()*360},100%,50%)`;
+    conf.style.animationDuration=(2+Math.random()*2)+'s';
+    document.body.appendChild(conf);
+    setTimeout(()=>conf.remove(),4000);
+  }
+}
+
+createBoard();
+</script>
+</body>
+</html>
